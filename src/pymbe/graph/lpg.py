@@ -91,31 +91,6 @@ class SysML2LabeledPropertyGraph(trt.HasTraits):
             },
         )
 
-    def _make_new_edge(self, data: dict, edge_mapper: dict) -> list:
-        attribute = edge_mapper["attribute"]
-        if not data.get(attribute, {}):
-            return []
-        metatype = edge_mapper["metatype"]
-        sources = [data["@id"]]
-        targets =data[attribute]
-        if isinstance(targets, (list, tuple, set)):
-            targets = [
-                t["@id"] for t in targets
-            ]
-            sources *= len(targets)
-        elif isinstance(targets, dict):
-            targets = [targets["@id"]]
-        else:
-            raise ValueError(
-                f"Cannot process: {targets} of type: {type(targets)}."
-            )
-        if edge_mapper.get("reversed", False):
-            sources, targets = targets, sources
-        return [
-            self._make_nx_multi_edge(source, target, metatype)
-            for source, target in zip(sources, targets)
-        ]
-
     @trt.observe("model")
     def update(self, change: trt.Bunch):
         self._adapt.cache_clear()

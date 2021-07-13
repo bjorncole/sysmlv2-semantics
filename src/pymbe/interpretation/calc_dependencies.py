@@ -49,7 +49,7 @@ def generate_execution_order(
                 kind = 'ValueBinding'
             elif (node_child, node, 'ReturnParameterMembership') in lpg.edges_by_type['ReturnParameterMembership']:
                 kind = 'Output'
-            elif (node, node_child, 'ParameterMembership') in lpg.edges_by_type['ParameterMembership']:
+            elif (node, node_child, 'ParameterMembership') in lpg.edges_by_type.get('ParameterMembership', []):
                 kind = 'Input'
 
             execution_pairs.append([node_child, node, kind])

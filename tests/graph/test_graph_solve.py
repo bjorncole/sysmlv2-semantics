@@ -41,4 +41,6 @@ def test_kerbal_solve1(kerbal_lpg, kerbal_random_stage_5_complete, kerbal_stable
     ft200_masses = [seq[-1].value for seq in kerbal_random_stage_5_complete[ft200_full_mass]]
 
     #assert all([full_mass == 1.125 for full_mass in ft200_masses])
-    assert all([isp == 170.0 for isp in rt_10_isps])
+    assert all(
+        [isp == 170.0 for isp in rt_10_isps]
+    ), f"RT-10 ISPs: {rt_10_isps}"

@@ -70,8 +70,7 @@ def get_label_for_expression(
 
     if metatype == "FeatureReferenceExpression":
         try:
-            referent_id = expression._data["referent"]["@id"]
-            referent = expression._model.elements[referent_id]
+            referent = expression.referent
             referent_name = referent.name
             name_chain = referent.qualifiedName.split("::")
             index = 0
@@ -80,7 +79,7 @@ def get_label_for_expression(
                 referent_name = name_chain[-index]
                 if referent_name.lower() == "null":
                     referent_name = None
-        except (AttributeError, KeyError):
+        except (AttributeError, KeyError, TypeError):
             referent_name = "UNNAMED"
         return f"FRE.{referent_name}"
 
@@ -116,14 +115,13 @@ def get_label_for_expression(
         prefix = type_names[0] if type_names else ""
     elif metatype == "PathStepExpression":
         path_step_names = []
-        for owned_fm_id in expression["ownedFeatureMembership"]:
-            owned_fm = all_elements[owned_fm_id["@id"]]
-            if owned_fm["@type"] == "FeatureMembership":
-                member = all_elements[owned_fm["memberElement"]["@id"]]
+        for owned_fm in expression.ownedFeatureMembership:
+            if owned_fm._metatype == "FeatureMembership":
+                member = owned_fm.memberElement
                 # expect FRE here
-                if "referent" in member:
-                    refered = all_elements[member["referent"]["@id"]]
-                    path_step_names.append(refered.get("name") or refered["@id"])
+                refered = member.get("referent")
+                if refered:
+                    path_step_names.append(refered.get("name") or refered._id)
 
         prefix = ".".join(path_step_names)
     return f"""{prefix} ({", ".join(input_names)}) => {result.name}"""

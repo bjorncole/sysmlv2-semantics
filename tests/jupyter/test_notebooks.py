@@ -22,5 +22,5 @@ def test_simple_parts_explorer(tb):
 
 @testbook("dev_doc/SysML Model.ipynb", execute=True)
 def test_sysml_model(tb):
-    an_element = tb.ref("an_element")
-    assert an_element._id == "78c8e7e1-1ac0-4a45-ac30-830ec479abb2"
+    kerbal_element = tb.ref("kerbal")
+    assert kerbal_element._data["name"] == "Kerbal"

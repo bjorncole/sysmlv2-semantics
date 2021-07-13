@@ -4,9 +4,9 @@ channels:
   - https://conda.anaconda.org/conda-forge
 
 dependencies:
-  - anaconda-project =0.8.4
+  - anaconda-project =0.10.1
   - conda =4.9
-  - mamba =0.7
+  - mamba =0.8
   - pip
   - python >=3.7,<3.8
   - twine

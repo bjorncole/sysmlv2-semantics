@@ -1,9 +1,12 @@
-from random import randint, sample
-from uuid import uuid4
-
-import networkx as nx
+# The playbooks here build up random sets of instances from a given model using
+# "set building" step for classifiers and features
+# NOTE: This playbook is an initial attempt to randomly generate sequences to fill in sets that are interpretations of the user model
 
 import logging
+
+from random import randint, sample
+
+import networkx as nx
 
 from ..graph.lpg import SysML2LabeledPropertyGraph
 from ..label import get_label, get_label_for_id
@@ -19,16 +22,11 @@ from .set_builders import (
     extend_sequences_with_new_expr,
     extend_sequences_with_new_value_holder,
 )
-from pymbe.interpretation.results import *
+from .results import pprint_dict_keys
+
 
 logger = logging.getLogger(__name__)
 
-# The playbooks here work to use set building steps to build up sets of instances from a given model
-
-# Random builder for classifiers and features
-
-# This playbook is an initial playbook that will randomly generate sequences to fill in sets that are interpretations
-# of the user model
 
 TYPES_FOR_FEATURING = (
     "ActionUsage",
@@ -284,6 +282,7 @@ def random_generator_playbook_phase_3(
     :param instances_dict: Working dictionary of interpreted sequences for the model
     :return: (Temporarily return a trace of actions) None - side effect is addition of new instances to the instances dictionary
     """
+    logger.debug("Starting things up")
     already_drawn, last_sequence = {}, []
     for feature_sequence in feature_sequences:
         new_sequences = []

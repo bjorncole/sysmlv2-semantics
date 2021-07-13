@@ -26,17 +26,51 @@ commands:
     unix: |
       isort .
       black src/
-    windows: python isort . & python black .
+    windows: python isort . & python black src/
   package:
     description: make a source distribution
     env_spec: developer
-    unix: python setup.py sdist
-    windows: python setup.py sdist
+    unix: python setup.py sdist bdist_wheel
+    windows: python setup.py sdist bdist_wheel
   test:
     description: run the tests
     env_spec: developer
     unix: py.test tests/
     windows: py.test tests/
+  download:fixtures:
+    description: update the test fixtures from the Intercax server
+    env_spec: developer
+    unix: python -m tests.fixtures.update
+    windows: python -m tests.fixtures.update
+  push:fixtures:
+    description: push the fixture data to the remote repo
+    env_spec: developer
+    unix: |
+      cd tests/fixtures
+      git add *.json
+      git commit -m "Updated test fixtures"
+      git push origin main
+      cd ..
+      git add fixtures
+      git commit -m "Pointing submodule to latest test fixtures"
+      git push origin main
+      cd ..
+    windows: cd tests\fixtures & git add *.json & git commit -m "Updated test fixtures" & git push origin main & cd .. & git add fixtures & git commit -m "Pointing submodule to latest test fixtures" & git push origin main & cd ..
+  push:package:check:
+    description: check package befor pushing to PyPI
+    env_spec: developer
+    unix: twine check dist/*
+    windows: twine check dist/*
+  push:package:pypi:
+    description: push package to PyPI
+    env_spec: developer
+    unix: twine upload dist/*
+    windows: twine upload dist/*
+  push:package:pypitest:
+    description: push package to PyPI test repository
+    env_spec: developer
+    unix: twine upload -r testpypi dist/*
+    windows: twine upload -r testpypi dist/* --verbose
   notebooks/Tutorial.ipynb:
     env_spec: user
     notebook: notebooks/Tutorial.ipynb
@@ -55,6 +89,7 @@ env_specs:
   user:
     description: The environment for running the notebooks
     packages:
+    - importnb
     - ipyelk >=2.0.0a0,<3
     - ipytree >=0.2.1,<1
     - jupyterlab >=3.0,<4
@@ -86,4 +121,5 @@ env_specs:
     - pytest-html
     - pytest-xdist
     - testbook
+    - twine >=3.0,<3.4
     - wheel

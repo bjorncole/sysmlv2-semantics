@@ -5,10 +5,14 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Set, Tuple, Union
+from uuid import uuid4
 from warnings import warn
 
 
-class ListGetter(list):
+VALUE_METATYPES = ("AttributeDefinition", "AttributeUsage", "DataType")
+
+
+class ListOfNamedItems(list):
     """A list that also can return items by their name."""
 
     # FIXME: figure out why __dir__ of returned objects think they are lists
@@ -67,7 +71,7 @@ class Model:
     all_relationships: Dict[str, "Element"] = field(default_factory=dict)
     all_non_relationships: Dict[str, "Element"] = field(default_factory=dict)
 
-    ownedElement: ListGetter = field(default_factory=ListGetter)
+    ownedElement: ListOfNamedItems = field(default_factory=ListOfNamedItems)
     ownedMetatype: Dict[str, List["Element"]] = field(default_factory=dict)
     ownedRelationship: List["Element"] = field(default_factory=list)
 
@@ -86,8 +90,7 @@ class Model:
 
         # Modify and add derived data to the elements
         self._add_relationships()
-        # TODO: Bring this back when things get resolved
-        # self._add_labels()
+        self._add_labels()
 
     def __repr__(self) -> str:
         data = self.source or f"{len(self.elements)} elements"
@@ -133,6 +136,7 @@ class Model:
         )
 
     def _add_labels(self):
+        """Attempts to add a label to the elements"""
         from .label import get_label
         for element in self.elements.values():
             label = get_label(element=element)
@@ -159,7 +163,7 @@ class Model:
             for element in elements.values()
             if element.get_owner() is None
         ]
-        self.ownedElement = ListGetter(
+        self.ownedElement = ListOfNamedItems(
             element
             for element in owned
             if not element._is_relationship
@@ -208,39 +212,51 @@ class Element:
     _data: dict
     _model: Model
 
+    _id: str = field(default_factory=lambda: str(uuid4()))
+    _metatype: str = "Element"
     _derived: Dict[str, List] = field(default_factory=lambda: defaultdict(list))
-    _instances: List["Element"] = field(default_factory=list)
+    _instances: List["Instance"] = field(default_factory=list)
+    _is_abstract: bool = False
     _is_relationship: bool = False
 
     def __post_init__(self):
+        self._id = self._data["@id"]
+        self._metatype = self._data["@type"]
         self._is_abstract = bool(self._data.get("isAbstract"))
         self._is_relationship = "relatedElement" in self._data
-        self._data["ownedElement"] = ListGetter(self._data["ownedElement"])
+        for key, items in self._data.items():
+            if key.startswith("owned") and isinstance(items, list):
+                self._data[key] = ListOfNamedItems(items)
+
+    def __call__(self, *args, **kwargs):
+        if self._metatype in VALUE_METATYPES:
+            return ValueHolder(*args, **kwargs, element=self)
+        return Instance(*args, **kwargs, element=self)
 
     def __dir__(self):
-        return sorted(
+        return sorted(set(
             list(super().__dir__()) + [
                 key
                 for key in [*self._data, *self._derived]
                 if key.isidentifier()
             ]
-        )
+        ))
+
+    def __eq__(self, other):
+        if isinstance(other, str):
+            return self._id == other
+        # TODO: Assess if this is more trouble than it's worth
+        # if isinstance(other, dict):
+        #     return tuple(sorted(self._data.items())) == tuple(sorted(other.items()))
+        return self is other
 
     def __getattr__(self, key: str):
         try:
-             return self.__getattribute__(key)
-        except AttributeError as exc:
-            try:
-                return self[key]
-            except (KeyError, RecursionError):
-                if key.startswith("_"):
-                    try:
-                        return self[f"@{key[1:]}"]
-                    except (KeyError, RecursionError):
-                        pass
-            raise exc
+            return self[key]
+        except KeyError:
+            raise AttributeError(f"Cannot find {key}")
 
-    def __getitem__(self, key: str) -> Any:
+    def __getitem__(self, key: str):
         found = False
         for source in ("_data", "_derived"):
             source = self.__getattribute__(source)
@@ -267,23 +283,26 @@ class Element:
     def __repr__(self):
         return self._model._naming.get_name(element=self)
 
-    def get(self, key: str, default: Any = None) -> Any:
-        try:
-            self.__getitem__(key)
-        except KeyError:
-            return default
-
     @property
-    def _id(self) -> str:
-        return self._data["@id"]
-
-    @property
-    def _metatype(self) -> str:
-        return self._data["@type"]
+    def label(self) -> str:
+        return self._derived.get("label")
 
     @property
     def relationships(self) -> Dict[str, Any]:
-        return {key: self[key] for key in self._derived}
+        return {
+            key: self[key] for key in self._derived
+            if key.startswith("through") or
+            key.startswith("reverse")
+        }
+
+    def get(self, key: str, default: Any = None) -> Any:
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+    def get_element(self, element_id) -> "Element":
+        return self._model.elements.get(element_id)
 
     def get_owner(self) -> "Element":
         data = self._data
@@ -296,7 +315,8 @@ class Element:
             return None
         return self._model.elements[owner_id]
 
-    def create(data: dict, model: Model) -> "Element":
+    @staticmethod
+    def new(data: dict, model: Model) -> "Element":
         return Element(_data=data, _model=model)
 
     def __safe_dereference(self, item):
@@ -304,7 +324,7 @@ class Element:
         try:
             if isinstance(item, dict) and "@id" in item:
                 if len(item) > 1:
-                    warn("Found a reference with more than one entry: {item}")
+                    warn(f"Found a reference with more than one entry: {item}")
                 item = item["@id"]
             return self._model.elements[item]
         except KeyError:
@@ -313,15 +333,33 @@ class Element:
 
 @dataclass
 class Instance:
-    """An M0 instantiation of an element"""
+    """
+    An M0 instantiation of an M1 element.
+
+    Sequences of instances are intended to follow the mathematical base semantics of SysML v2.
+    """
 
     element: Element
     name: str = ""
 
-    def __post_init__(self, *args, **kwargs):
-        super().__post_init__(*args, **kwargs)
+    def __post_init__(self):
         element = self.element
-        element._instances += [self]
+        if self not in element._instances:
+            element._instances += [self]
         if not self.name:
-            name = element.name or element._id
-            self.name = f"{name}#{len(element._instances)}"
+            id_ = element._instances.index(self) + 1
+            name = element.label or element._id
+            self.name = f"{name}#{id_}"
+
+
+@dataclass
+class ValueHolder(Instance):
+    """An M0 instantiation of a Value element"""
+
+    value: Any = None
+
+    def __repr__(self):
+        value = self.value
+        if value is None:
+            value = "unset"
+        return f"{self.name} ({value})"

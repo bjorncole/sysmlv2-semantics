@@ -1,10 +1,12 @@
 from pathlib import Path
+from typing import Dict
 
 import traitlets as trt
 
 import pytest
 
 import pymbe
+import pymbe.api as pm
 from pymbe.client import SysML2Client
 from pymbe.graph import SysML2LabeledPropertyGraph
 from pymbe.interpretation.interp_playbooks import (
@@ -291,3 +293,16 @@ def simple_actions_lpg() -> SysML2LabeledPropertyGraph:
     new_lpg.model = client.model
 
     return new_lpg
+
+
+@pytest.fixture
+def kerbal_model() -> pm.Model:
+    return pm.Model.load_from_file(FIXTURES / "Kerbal.json")
+
+
+@pytest.fixture
+def all_models() -> Dict[Path, pm.Model]:
+    return {
+        path.name.replace(".json", ""): pm.Model.load_from_file(path.resolve())
+        for path in FIXTURES.glob("*.json")
+    }
